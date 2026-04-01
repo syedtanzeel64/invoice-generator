@@ -4,7 +4,7 @@ import { jsPDF } from 'jspdf';
 import { LogIn, UserPlus, LogOut, Download, Save, Plus, Trash2, Clock, Upload } from 'lucide-react';
 import InvoicePreview from './components/InvoicePreview';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
