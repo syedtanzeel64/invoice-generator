@@ -89,8 +89,8 @@ function App() {
     companyEmail: '',
     logoUrl: '',
     items: [{ id: Date.now(), description: '', hours: '', rate: '' }],
-    discountRate: 0,
-    amountPaid: 0,
+    discountRate: '',
+    amountPaid: '',
   });
 
   const [currentInvoice, setCurrentInvoice] = useState(defaultInvoice());
