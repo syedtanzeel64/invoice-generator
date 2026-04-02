@@ -38,7 +38,7 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword]);
-    res.status(201).json({ id: result.lastInsertRowid || 0 });
+    res.status(201).json({ id: Number(result.lastInsertRowid) || 0 });
   } catch (error) {
     if (error.message && error.message.includes('UNIQUE constraint failed')) {
       return res.status(400).json({ error: 'Username already exists' });
@@ -83,7 +83,7 @@ app.post('/api/invoices', authenticateToken, async (req, res) => {
         company_name, company_address, company_phone, company_email,
         date_issued, subtotal, discount_rate, tax_rate, tax_amount, total, JSON.stringify(items_json || []), logo_url || '', amount_paid || 0
       ]);
-    res.status(201).json({ id: result.lastInsertRowid || 0 });
+    res.status(201).json({ id: Number(result.lastInsertRowid) || 0 });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -1,10 +1,54 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { LogIn, UserPlus, LogOut, Download, Save, Plus, Trash2, Clock, Upload } from 'lucide-react';
+import { LogIn, UserPlus, LogOut, Download, Save, Plus, Trash2, Clock, Upload, CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
 import InvoicePreview from './components/InvoicePreview';
 
 const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
+
+// --- Styled Modal Component ---
+const modalIcons = {
+  success: <CheckCircle className="text-green-500" size={28} />,
+  error: <XCircle className="text-red-500" size={28} />,
+  warning: <AlertTriangle className="text-yellow-500" size={28} />,
+  info: <Info className="text-blue-500" size={28} />,
+  confirm: <AlertTriangle className="text-orange-500" size={28} />,
+};
+
+function AppModal({ modal, onClose, onConfirm }) {
+  if (!modal) return null;
+  const isConfirm = modal.type === 'confirm';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 animate-fadeIn" style={{ animation: 'modalIn 0.2s ease-out' }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {modalIcons[modal.type] || modalIcons.info}
+            <h3 className="text-base font-bold text-gray-800">{modal.title}</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition"><X size={18} /></button>
+        </div>
+        <p className="text-sm text-gray-600 leading-relaxed pl-1">{modal.message}</p>
+        <div className="flex gap-3 mt-1 justify-end">
+          {isConfirm && (
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">Cancel</button>
+          )}
+          <button
+            onClick={isConfirm ? onConfirm : onClose}
+            className={`px-5 py-2 text-sm font-semibold text-white rounded-lg transition ${
+              modal.type === 'error' ? 'bg-red-500 hover:bg-red-600' :
+              modal.type === 'confirm' ? 'bg-orange-500 hover:bg-orange-600' :
+              modal.type === 'success' ? 'bg-green-500 hover:bg-green-600' :
+              'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {isConfirm ? 'Delete' : 'OK'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
@@ -14,6 +58,21 @@ function App() {
   const [invoices, setInvoices] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [modal, setModal] = useState(null); // { type, title, message, onConfirm? }
+
+  const showAlert = useCallback((type, title, message) => {
+    setModal({ type, title, message });
+  }, []);
+
+  const showConfirm = useCallback((title, message, onConfirm) => {
+    setModal({ type: 'confirm', title, message, onConfirm });
+  }, []);
+
+  const closeModal = useCallback(() => setModal(null), []);
+  const handleConfirm = useCallback(() => {
+    if (modal?.onConfirm) modal.onConfirm();
+    setModal(null);
+  }, [modal]);
   
   const defaultInvoice = () => ({
     id: null,
@@ -71,7 +130,7 @@ function App() {
       if (res.ok) {
         if (!isLoginView) {
           setIsLoginView(true);
-          alert('Registered! Please sync to login.');
+          showAlert('success', 'Registered!', 'Account created successfully. Please sign in to continue.');
         } else {
           setToken(data.token);
           setUsername(data.username);
@@ -79,11 +138,11 @@ function App() {
           localStorage.setItem('username', data.username);
         }
       } else {
-        alert(data.error || 'Authentication failed');
+        showAlert('error', 'Authentication Failed', data.error || 'Authentication failed. Please check your credentials.');
       }
     } catch (err) {
       console.error(err);
-      alert('Error connecting to server. Is it running?');
+      showAlert('error', 'Connection Error', 'Unable to connect to the server. Please try again.');
     }
   };
 
@@ -156,36 +215,41 @@ function App() {
       });
       
       if (res.ok) {
-        alert(currentInvoice.id ? 'Invoice updated successfully!' : 'Invoice saved successfully to history!');
+        showAlert('success', currentInvoice.id ? 'Invoice Updated!' : 'Invoice Saved!', currentInvoice.id ? 'Your invoice has been updated successfully.' : 'Invoice saved to history successfully!');
         fetchInvoices();
       } else {
         const errorData = await res.json();
-        alert('Error saving invoice: ' + (errorData.error || 'Unknown error'));
+        showAlert('error', 'Save Failed', 'Error saving invoice: ' + (errorData.error || 'Unknown error'));
       }
     } catch (err) {
       console.error(err);
-      alert('Error saving invoice');
+      showAlert('error', 'Save Failed', 'An unexpected error occurred while saving. Please try again.');
     }
   };
 
-  const handleDeleteInvoice = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this invoice permanently?')) return;
-    try {
-      const res = await fetch(`${API_URL}/invoices/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchInvoices();
-        if (currentInvoice.id === id) {
-           setCurrentInvoice(defaultInvoice()); // Clear editor if actively selected
+  const handleDeleteInvoice = (id) => {
+    showConfirm(
+      'Delete Invoice',
+      'Are you sure you want to permanently delete this invoice? This action cannot be undone.',
+      async () => {
+        try {
+          const res = await fetch(`${API_URL}/invoices/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            fetchInvoices();
+            if (currentInvoice.id === id) {
+              setCurrentInvoice(defaultInvoice());
+            }
+          } else {
+            showAlert('error', 'Delete Failed', 'Failed to delete invoice. Please try again.');
+          }
+        } catch (err) {
+          console.error(err);
         }
-      } else {
-        alert('Failed to delete invoice');
       }
-    } catch (err) {
-      console.error(err);
-    }
+    );
   };
 
   const handleDownloadPdf = async () => {
@@ -227,7 +291,7 @@ function App() {
       pdf.save(`${currentInvoice.invoiceNumber || 'invoice'}.pdf`);
     } catch (err) {
       console.error('PDF Generation Error:', err);
-      alert('Failed to generate PDF. Please try again.');
+      showAlert('error', 'PDF Error', 'Failed to generate PDF. Please try again.');
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -259,7 +323,7 @@ function App() {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) { // 2MB limit
-          alert("Logo file is too large! Please upload a smaller image.");
+          showAlert('warning', 'File Too Large', 'Logo file is too large! Please upload an image under 2MB.');
           return;
       }
       const reader = new FileReader();
@@ -273,6 +337,7 @@ function App() {
   if (!token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+        <AppModal modal={modal} onClose={closeModal} onConfirm={handleConfirm} />
         <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 tracking-tight">Tanzeels Invoice Generator</h1>
@@ -323,6 +388,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+      <AppModal modal={modal} onClose={closeModal} onConfirm={handleConfirm} />
       <header className="bg-white border-b shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
