@@ -88,7 +88,7 @@ function App() {
     companyPhone: '',
     companyEmail: '',
     logoUrl: '',
-    items: [{ id: Date.now(), description: '', hours: 0, rate: 0 }],
+    items: [{ id: Date.now(), description: '', hours: '', rate: '' }],
     discountRate: 0,
     amountPaid: 0,
   });
@@ -310,7 +310,7 @@ function App() {
   const addItem = () => {
     setCurrentInvoice(prev => ({
       ...prev,
-      items: [...prev.items, { id: Date.now(), description: '', hours: 0, rate: 0 }]
+      items: [...prev.items, { id: Date.now(), description: '', hours: '', rate: '' }]
     }));
   };
 
