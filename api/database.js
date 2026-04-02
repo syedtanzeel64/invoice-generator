@@ -1,5 +1,5 @@
 const { createClient } = require('@libsql/client');
-require('dotenv').config();
+try { require('dotenv').config(); } catch (e) { /* .env not needed on Vercel */ }
 
 const url = process.env.TURSO_DATABASE_URL || 'file:database.sqlite';
 const authToken = process.env.TURSO_AUTH_TOKEN;
